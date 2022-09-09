@@ -20,6 +20,8 @@ interface IStackProps extends StackProps {
   env: object; 
   testingLocation: string; 
   environment: string; 
+  costcenter: string; 
+  dtstamp: string; 
 }
 
 
@@ -224,9 +226,11 @@ export class EcsAutoscaleWebappStack extends Stack {
   //albSG.addIngressRule(ec2.Peer.ipv4(props.testingLocation), ec2.Port.tcp(props.ALBPort), 'allow HTTP traffic from test location only' ); 
     alblistener.connections.allowDefaultPortFromAnyIpv4('Open to the world');
 
-
-    
-  Tags.of(this).add("service", "ECS")
+  Tags.of(this).add("service", props.serviceName)
+  Tags.of(this).add("solution", props.solutionName)
+  Tags.of(this).add("environment", props.environment)
+  Tags.of(this).add("costcenter", props.costcenter)
+  Tags.of(this).add("updatetimestamp", props.dtstamp)
 
     new CfnOutput(this, 'LoadBalancerDNS', { value: 'http://'+alb.loadBalancerDnsName, });
     new CfnOutput(this, 'VPCIP', { value: vpc.vpcId, exportName: `${props.solutionName}-vpcip` });
