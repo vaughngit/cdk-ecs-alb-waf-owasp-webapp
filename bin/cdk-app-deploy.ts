@@ -12,8 +12,8 @@ const timestamp = date_ob.toLocaleTimeString()
 const dtstamp = dateStamp+''+' '+timestamp
 const aws_region = 'us-east-2'
 const solutionName = "wafxssblocker"
-const environment = "testing"
-const costcenter = "lalith"
+const environment = "demo"
+const costcenter = "0014z00001gWOCPAA4"
 
 const app = new cdk.App();
 
@@ -45,7 +45,7 @@ new WAFv2Stack(app, 'waf',
     region: aws_region
   },
   stackName: "WAF-with-managed-and-custom-rules", 
-  serviceName: "waf",
+  serviceName: "demo",
   solutionName,
   environment,
   costcenter,

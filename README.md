@@ -23,11 +23,15 @@
     # every 15 mins: */15 * * * *
     # every 5 mins: */5 * * * *
 
-    docker run -d --rm  -e URL=http://wafxssblocker-alb-148388978.us-east-2.elb.amazonaws.com/?allowme  -e CRON_SCHEDULE="* * * * *" lecovi/curl-cron
-    docker run -d --rm  -e URL=http://wafxssblocker-alb-148388978.us-east-2.elb.amazonaws.com/?blockme  -e CRON_SCHEDULE="*/15 * * * *" lecovi/curl-cron
+    docker run -d --rm  -e URL=http://wafxssblocker-alb-367472606.us-east-2.elb.amazonaws.com/?allowme  -e CRON_SCHEDULE="* * * * *" lecovi/curl-cron
+    docker run -d --rm  -e URL=http://wafxssblocker-alb-367472606.us-east-2.elb.amazonaws.com/?blockme  -e CRON_SCHEDULE="*/15 * * * *" lecovi/curl-cron
     docker ps 
     docker stop {name}
 
+
+## Manual Test: 
+### Past in comment box and should succeed: 
+    <iframe src=”javascript:alert(`xss`)”>
 
 ## Destroy the stack: 
     cdk destroy waf
