@@ -10,11 +10,11 @@ const dateStamp = date_ob.toDateString()
 const timestamp = date_ob.toLocaleTimeString()
 
 const dtstamp = dateStamp+''+' '+timestamp
-const aws_region = 'us-east-1'
+const aws_region = 'us-west-2'
 const application = "two"
 const solutionName = `wafxssblocker-${application}`
 const environment = "demo"
-const costcenter = "madeline"
+const costcenter = "waf-demo"
 
 
 const app = new cdk.App();
