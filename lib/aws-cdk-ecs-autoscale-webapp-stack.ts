@@ -47,7 +47,7 @@ export class EcsAutoscaleWebappStack extends Stack {
 
 
   // Create new VPC
-  const vpc = new ec2.Vpc(this, `createNewVPC`, { 
+  const vpc = new ec2.Vpc(this, `OWASP`, { 
     vpcName: `${props.solutionName}-vpc`,
     maxAzs: 2,
     cidr: "172.16.0.0/16",
@@ -71,12 +71,12 @@ export class EcsAutoscaleWebappStack extends Stack {
       {
         cidrMask: 24,
         name: `${props.solutionName}-application-1`,
-        subnetType: ec2.SubnetType.PRIVATE_WITH_NAT
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
       },
       {
         cidrMask: 24,
         name: `${props.solutionName}-application-2`,
-        subnetType: ec2.SubnetType.PRIVATE_WITH_NAT
+        subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS
       }
     ]
   });
@@ -112,7 +112,6 @@ export class EcsAutoscaleWebappStack extends Stack {
       iam.ManagedPolicy.fromAwsManagedPolicyName("AWSXRayDaemonWriteAccess"),
       iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AmazonECSTaskExecutionRolePolicy"),
       iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryPowerUser"),
-      //iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonDynamoDBFullAccess")
     ]
   });
 
@@ -156,14 +155,25 @@ export class EcsAutoscaleWebappStack extends Stack {
     securityGroupName: `${props.solutionName}-albsg`,  
     description: `${props.solutionName}-alb security group`,
   }); 
+  
+  // Allow inbound traffic only from specific IP address
+  albSG.addIngressRule(
+    ec2.Peer.ipv4('73.77.216.37/32'),
+    ec2.Port.tcp(80),
+    'Allow HTTP traffic from specific IP only'
+  );
+  
+  albSG.addIngressRule(
+    ec2.Peer.ipv4('73.77.216.37/32'),
+    ec2.Port.tcp(443),
+    'Allow HTTPS traffic from specific IP only'
+  );
 
-  //allow traffic on any port from the ALB security group
-  ecsSG.connections.allowFrom(
-    new ec2.Connections({
-      securityGroups: [albSG],
-    }),
+  //allow traffic only from specific IP address
+  ecsSG.addIngressRule(
+    ec2.Peer.ipv4('73.77.216.37/32'),
     ec2.Port.allTraffic(),
-    `allow traffic on any port from the ALB security group`,
+    'allow traffic on any port from specific IP address'
   )
 
 
@@ -201,7 +211,6 @@ export class EcsAutoscaleWebappStack extends Stack {
       parameterName: `/${props.solutionName}/${props.environment}/ALB/ARN`,
       stringValue: alb.loadBalancerArn,
       description: `param for alb arn`,
-      type: ssm.ParameterType.STRING,
       tier: ssm.ParameterTier.INTELLIGENT_TIERING,
       allowedPattern: '.*',
     });
@@ -209,20 +218,9 @@ export class EcsAutoscaleWebappStack extends Stack {
     const  albTargetGroup = new elbv2.ApplicationTargetGroup(this, "targetgroup",{
       vpc: vpc,
       targetGroupName: `${props.solutionName}-${props.application}-tg`,
-      //targetType: elbv2.TargetType.IP,
       targets: [fargateService],
       port: props.AppPort,
       protocol: elbv2.ApplicationProtocol.HTTP,
-      //deregistrationDelay: Duration.seconds(120),
-      // healthCheck: {
-      //   interval: cdk.Duration.seconds(30),
-      //   path: props.healthCheckPath,
-      //   protocol: elbv2.Protocol.HTTP,
-      //   timeout: cdk.Duration.seconds(10),
-      //   healthyThresholdCount: 5,
-      //   unhealthyThresholdCount: 3,
-      //   //healthyHttpCodes: "200",
-      // },
       healthCheck: { 
         path: props.HealthCheckPath,
         healthyHttpCodes: props.HealthCheckHttpCodes,
@@ -235,47 +233,13 @@ export class EcsAutoscaleWebappStack extends Stack {
 
     const alblistener = alb.addListener('Listener', {
       port: props.ALBPort,
-      // defaultAction: elbv2.ListenerAction.fixedResponse(400, {
-      //   contentType: "application/json",
-      //   messageBody: "page not found"
-      // }),
       defaultTargetGroups: [albTargetGroup],
-      open: true,
+      open: false, // Restrict access - don't open to everyone
     });
-
-    // alblistener.addTargets('Target', {
-    //   port: props.AppPort,
-    //   protocol: elbv2.ApplicationProtocol.HTTP,
-    //   targetGroupName: `${props.solutionName}-tg`,
-    //   targets: [fargateService],
-    //   //healthCheck: { path: '/api/' }
-    //   healthCheck: { 
-    //     path: props.HealthCheckPath,
-    //     healthyHttpCodes: props.HealthCheckHttpCodes,
-    //     port: props.HealthCheckPort,
-    //     protocol: elbv2.Protocol.HTTP,
-    //    }
-    // });
-/* 
-    new elbv2.ApplicationListenerRule(this, 'http 80 listener rule', {
-      listener: alblistener,
-      priority: 10,
-      action: elbv2.ListenerAction.forward([albTargetGroup]),
-      conditions: [
-        //elbv2.ListenerCondition.hostHeaders(['example.com']),
-        elbv2.ListenerCondition.pathPatterns(['/*'])
-    ],
-    }) */
-
-  //allow ingress from test location only 
-  //albSG.addIngressRule(ec2.Peer.ipv4(props.testingLocation), ec2.Port.tcp(props.ALBPort), 'allow HTTP traffic from test location only' ); 
- // alblistener.connections.allowDefaultPortFromAnyIpv4('Open to the world');
 
 
     const zone = route53.HostedZone.fromLookup(this, 'PrivateHostedZone', {
-      domainName: props.domainName,
-     // privateZone: true,
-     // vpcId: vpc.vpcId
+      domainName: props.domainName
     })
 
     const cnameRecord = new route53.CnameRecord(this, 'MyCnameRecord', {
@@ -299,53 +263,12 @@ export class EcsAutoscaleWebappStack extends Stack {
     const port443AlbListener = new elbv2.ApplicationListener(this, 'secure alb listener', { 
       //https://docs.aws.amazon.com/cdk/api/v1/docs/@aws-cdk_aws-elasticloadbalancingv2.NetworkListenerProps.html
       loadBalancer: alb,
-      // defaultAction: elbv2.ListenerAction.fixedResponse(400, {
-      //   contentType: "application/json",
-      //   messageBody: "page not found"
-      // }),
       defaultTargetGroups: [albTargetGroup],
       port: 443, 
       sslPolicy: elbv2.SslPolicy.RECOMMENDED,
       certificates: [elbv2.ListenerCertificate.fromCertificateManager(acmcert)],
-      open: true //default is true which allows world wide access
+      open: false // Restrict access - don't open to everyone
     }); 
-
-
-    // port443AlbListener.addTargets('Target', {
-    //   port: props.AppPort,
-    //   protocol: elbv2.ApplicationProtocol.HTTP,
-    //   targetGroupName: `${props.solutionName}-ssl-tg`,
-    //   targets: [fargateService],
-    //   //healthCheck: { path: '/api/' }
-    //   healthCheck: { 
-    //     path: props.HealthCheckPath,
-    //     healthyHttpCodes: props.HealthCheckHttpCodes,
-    //     port: props.HealthCheckPort,
-    //     protocol: elbv2.Protocol.HTTP,
-    //    }
-  
-    // });
-/*     
-    new elbv2.ApplicationListenerRule(this, 'http 443 listener rule', {
-      listener: port443AlbListener,
-      priority: 30,
-      action: elbv2.ListenerAction.forward([albTargetGroup]),
-      conditions: [
-        //elbv2.ListenerCondition.hostHeaders(['example.com']),
-        //elbv2.ListenerCondition.pathPatterns(['/video*'])
-        elbv2.ListenerCondition.pathPatterns(['/*'])
-    ],
-    })
- */
-
-  // allow 443 access only from test site 
-  // albSG.addIngressRule(
-  //   //ec2.Peer.anyIpv4(),
-  //   ec2.Peer.ipv4(props.testLocationIp),
-  //   //ec2.Port.tcp(parseInt(appPort)),
-  //   ec2.Port.tcp(443),
-  //   'allow app traffic from office ip only',
-  // )
 
 
 
