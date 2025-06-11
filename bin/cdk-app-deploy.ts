@@ -20,7 +20,8 @@ const costcenter = "waf-demo"
 const app = new cdk.App();
 
 
-new EcsAutoscaleWebappStack(app, 'ecs-webapp',
+// Create the ECS stack first
+const ecsStack = new EcsAutoscaleWebappStack(app, 'ecs-webapp',
 {
   env: { 
     account: process.env.CDK_DEFAULT_ACCOUNT, 
@@ -43,7 +44,8 @@ new EcsAutoscaleWebappStack(app, 'ecs-webapp',
   //testingLocation: "104.111.111.40/32" 
 });
 
-new WAFv2Stack(app, 'waf',
+// Create the WAF stack with an explicit dependency on the ECS stack
+const wafStack = new WAFv2Stack(app, 'waf',
 {
   env: { 
     account: process.env.CDK_DEFAULT_ACCOUNT, 
@@ -57,3 +59,5 @@ new WAFv2Stack(app, 'waf',
   dtstamp,
 });
 
+// Add explicit dependency to ensure WAF stack is deployed after ECS stack
+wafStack.addDependency(ecsStack);

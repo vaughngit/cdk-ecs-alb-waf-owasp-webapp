@@ -109,14 +109,25 @@ export class WAFv2Stack extends Stack {
     ]
   });
 
-    //import ALB that WAF will protect
-   const albArn =  ssm.StringParameter.valueFromLookup(this, `/${props.solutionName}/${props.environment}/ALB/ARN`)
+    // Import ALB ARN from SSM Parameter Store
+    // This parameter is created by the EcsAutoscaleWebappStack
+    const albArnParam = ssm.StringParameter.fromStringParameterName(
+      this,
+      'AlbArnParameter',
+      `/${props.solutionName}/${props.environment}/ALB/ARN`
+    );
+    
+    // Get the ALB ARN value
+    const albArn = albArnParam.stringValue;
 
-   // assoicate the WAF to the ALB 
-   const demoWaf = new wafv2.CfnWebACLAssociation(this, "web-acl-association", {
+    // Associate the WAF to the ALB
+    const demoWaf = new wafv2.CfnWebACLAssociation(this, "web-acl-association", {
       webAclArn: exampleWebAcl.attrArn,
       resourceArn: albArn,
     });
+    
+    // Add dependency to ensure the parameter exists before trying to use it
+    demoWaf.node.addDependency(albArnParam);
 
 
 // create log group to capture and store WAF logs 
@@ -142,11 +153,24 @@ export class WAFv2Stack extends Stack {
   });
   */
 
-   // associating WAF to Log group via CDK errors at the moment therefore assoication via console required required  
-    new wafv2.CfnLoggingConfiguration(this, 'MyCfnLoggingConfiguration', {
-      logDestinationConfigs: [wafLogGroup.logGroupArn.toString()],
+   // Associate WAF with CloudWatch Log Group for logging
+   new wafv2.CfnLoggingConfiguration(this, 'WafLoggingConfiguration', {
+      // Use the proper ARN format for the log destination
+      logDestinationConfigs: [
+        // Format: arn:aws:logs:region:account-id:log-group:log-group-name
+        `arn:aws:logs:${this.region}:${this.account}:log-group:${wafLogGroup.logGroupName}`
+      ],
       resourceArn: exampleWebAcl.attrArn,
+      // Enable redacted fields if you want to protect sensitive data
+      redactedFields: [
+        // Uncomment and customize if you need to redact specific fields
+        // { singleHeader: { name: 'authorization' } },
+        // { queryString: {} }
+      ]
     });
+    
+    // Add a dependency to ensure the log group exists before the logging configuration
+    wafLogGroup.node.addDependency(exampleWebAcl);
 
   Tags.of(this).add("service", props.serviceName)
   Tags.of(this).add("solution", props.solutionName)
@@ -154,11 +178,17 @@ export class WAFv2Stack extends Stack {
   Tags.of(this).add("costcenter", props.costcenter)
   Tags.of(this).add("updatetimestamp", props.dtstamp)
 
-  // import alb to faciliate output url for WAF testing   
-  const alb =  elbv2.ApplicationLoadBalancer.fromLookup(this, "import alb", {loadBalancerArn: albArn})
-    // new CfnOutput(this, 'LoadBalancerDNS', { value: 'http://'+alb.loadBalancerDnsName, });
-    new CfnOutput(this, 'AclConsoleUrl', {value: `https://console.aws.amazon.com/wafv2/homev2/web-acls?${this.region}`})
-    new CfnOutput(this, 'BlockedExampleUrl', { value: `http://${alb.loadBalancerDnsName}/?blockme`})
+  // Output the WAF console URL for easy access
+  new CfnOutput(this, 'AclConsoleUrl', {
+    value: `https://console.aws.amazon.com/wafv2/homev2/web-acls?${this.region}`,
+    description: 'URL to access the WAF console'
+  });
+  
+  // Output a note about testing the WAF
+  new CfnOutput(this, 'TestingInstructions', {
+    value: 'To test the WAF, append ?blockme to the ALB URL',
+    description: 'Instructions for testing the WAF blocking rule'
+  });
 
 
 
