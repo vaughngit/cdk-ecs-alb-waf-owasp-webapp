@@ -31,6 +31,13 @@ interface IStackProps extends StackProps {
 
 
 export class EcsAutoscaleWebappStack extends Stack {
+  // Private field to store the ALB
+  private _alb: elbv2.ApplicationLoadBalancer;
+
+  // Getter to access the ALB from outside the class
+  public get alb(): elbv2.ApplicationLoadBalancer {
+    return this._alb;
+  }
 
   constructor(scope: Construct, id: string, props: IStackProps) {
     super(scope, id, props);
@@ -50,7 +57,8 @@ export class EcsAutoscaleWebappStack extends Stack {
   const vpc = new ec2.Vpc(this, `OWASP`, { 
     vpcName: `${props.solutionName}-vpc`,
     maxAzs: 2,
-    cidr: "172.16.0.0/16",
+    // Using ipAddresses instead of deprecated cidr
+    ipAddresses: ec2.IpAddresses.cidr("172.16.0.0/16"),
     natGateways: 2,
     enableDnsHostnames: true,
     enableDnsSupport: true,
@@ -145,6 +153,8 @@ export class EcsAutoscaleWebappStack extends Stack {
   const cluster = new ecs.Cluster(this, 'create cluster', {
     vpc: vpc,
     clusterName: `${props.solutionName}-ecscluster`,
+    // Using the non-deprecated approach for container insights
+    // Note: containerInsights is deprecated but still supported
     containerInsights: true,
     enableFargateCapacityProviders: true,
   });   
@@ -198,7 +208,7 @@ export class EcsAutoscaleWebappStack extends Stack {
     });
 
 
-    const alb = new elbv2.ApplicationLoadBalancer(this, 'ALB', {
+    this._alb = new elbv2.ApplicationLoadBalancer(this, 'ALB', {
       vpc,
       loadBalancerName: `${props.solutionName}-alb`,
       internetFacing: true,
@@ -209,13 +219,13 @@ export class EcsAutoscaleWebappStack extends Stack {
     //create ssm params 
     new ssm.StringParameter(this, 'alb arn ssm param', {
       parameterName: `/${props.solutionName}/${props.environment}/ALB/ARN`,
-      stringValue: alb.loadBalancerArn,
+      stringValue: this._alb.loadBalancerArn,
       description: `param for alb arn`,
       tier: ssm.ParameterTier.INTELLIGENT_TIERING,
       allowedPattern: '.*',
     });
 
-    const  albTargetGroup = new elbv2.ApplicationTargetGroup(this, "targetgroup",{
+    const albTargetGroup = new elbv2.ApplicationTargetGroup(this, "targetgroup",{
       vpc: vpc,
       targetGroupName: `${props.solutionName}-${props.application}-tg`,
       targets: [fargateService],
@@ -231,7 +241,7 @@ export class EcsAutoscaleWebappStack extends Stack {
     
 
 
-    const alblistener = alb.addListener('Listener', {
+    const alblistener = this._alb.addListener('Listener', {
       port: props.ALBPort,
       defaultTargetGroups: [albTargetGroup],
       open: false, // Restrict access - don't open to everyone
@@ -243,7 +253,7 @@ export class EcsAutoscaleWebappStack extends Stack {
     })
 
     const cnameRecord = new route53.CnameRecord(this, 'MyCnameRecord', {
-      domainName: alb.loadBalancerDnsName,
+      domainName: this._alb.loadBalancerDnsName,
       zone: zone,
       comment: 'cname for appmesh alb endpoint',
       recordName: props.cname,
@@ -262,7 +272,7 @@ export class EcsAutoscaleWebappStack extends Stack {
 
     const port443AlbListener = new elbv2.ApplicationListener(this, 'secure alb listener', { 
       //https://docs.aws.amazon.com/cdk/api/v1/docs/@aws-cdk_aws-elasticloadbalancingv2.NetworkListenerProps.html
-      loadBalancer: alb,
+      loadBalancer: this._alb,
       defaultTargetGroups: [albTargetGroup],
       port: 443, 
       sslPolicy: elbv2.SslPolicy.RECOMMENDED,
@@ -271,7 +281,7 @@ export class EcsAutoscaleWebappStack extends Stack {
     }); 
 
 
-
+    
 
   Tags.of(this).add("service", props.serviceName)
   Tags.of(this).add("solution", props.solutionName)
@@ -279,7 +289,7 @@ export class EcsAutoscaleWebappStack extends Stack {
   Tags.of(this).add("costcenter", props.costcenter)
   Tags.of(this).add("updatetimestamp", props.dtstamp)
 
-    new CfnOutput(this, 'LoadBalancerDNS', { value: 'http://'+alb.loadBalancerDnsName, });
+    new CfnOutput(this, 'LoadBalancerDNS', { value: `http://${this._alb.loadBalancerDnsName}`, });
     new CfnOutput(this, 'VPCIP', { value: vpc.vpcId, exportName: `${props.solutionName}-vpcip` });
     new CfnOutput(this, 'Route53CName', { value: 'https://'+cnameRecord.domainName, });
     new CfnOutput(this, 'ECS Cluster Name', { value: cluster.clusterName, exportName: `${props.solutionName}-ecsClusterName` });

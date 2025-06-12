@@ -12,7 +12,8 @@ interface IStackProps extends StackProps {
   env: object; 
   environment: string; 
   costcenter: string; 
-  dtstamp: string;  
+  dtstamp: string;
+  alb: elbv2.ApplicationLoadBalancer; // Add ALB as a prop
 }
 
 
@@ -48,7 +49,7 @@ export class WAFv2Stack extends Stack {
      //Core rule set : Contains rules that are generally applicable to web applications. 
         // This provides protection against exploitation of a wide range of vulnerabilities, including those described in OWASP publications.    
         name: "AWS-AWSManagedRulesCommonRuleSet",
-            priority: 2,
+            priority: 3,
             overrideAction: {none: {}},
             statement: {
                 managedRuleGroupStatement: {
@@ -69,7 +70,7 @@ export class WAFv2Stack extends Stack {
         // Custom Rule
         const blockQueryRule: wafv2.CfnWebACL.RuleProperty = {
           name: 'BlockQueriesContainingSubString',
-          priority: 3,
+          priority: 4,
           action: { block: {} },
           statement: {
             byteMatchStatement: {
@@ -89,6 +90,24 @@ export class WAFv2Stack extends Stack {
           }
   }
 
+  // Bot Control Rule Set
+  const awsManagedRulesBotControlRuleSet: wafv2.CfnWebACL.RuleProperty = {
+        name: "AWS-AWSManagedRulesBotControlRuleSet",
+        priority: 2,
+        overrideAction: {none: {}},
+        statement: {
+            managedRuleGroupStatement: {
+                name: "AWSManagedRulesBotControlRuleSet",
+                vendorName: "AWS"
+            }
+        },
+        visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: "BotControlRules",
+            sampledRequestsEnabled: true
+        }
+  }
+
   // Create WAF aka Web ACL 
   const  exampleWebAcl = new wafv2.CfnWebACL(this, "web-acl", {
     defaultAction: {
@@ -105,29 +124,16 @@ export class WAFv2Stack extends Stack {
     rules: [
       awsManagedRulesCommonRuleSet,
       amazonIpReputationList,
-      blockQueryRule
+      blockQueryRule,
+      awsManagedRulesBotControlRuleSet
     ]
   });
 
-    // Import ALB ARN from SSM Parameter Store
-    // This parameter is created by the EcsAutoscaleWebappStack
-    const albArnParam = ssm.StringParameter.fromStringParameterName(
-      this,
-      'AlbArnParameter',
-      `/${props.solutionName}/${props.environment}/ALB/ARN`
-    );
-    
-    // Get the ALB ARN value
-    const albArn = albArnParam.stringValue;
-
-    // Associate the WAF to the ALB
+    // Associate the WAF to the ALB directly using the ALB prop
     const demoWaf = new wafv2.CfnWebACLAssociation(this, "web-acl-association", {
       webAclArn: exampleWebAcl.attrArn,
-      resourceArn: albArn,
+      resourceArn: props.alb.loadBalancerArn,
     });
-    
-    // Add dependency to ensure the parameter exists before trying to use it
-    demoWaf.node.addDependency(albArnParam);
 
 
 // create log group to capture and store WAF logs 
@@ -137,21 +143,7 @@ export class WAFv2Stack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY
   });
 
-  /*
-    // Create logging configuration with log group as destination
-  new CfnLoggingConfiguration(scope, "webAclLoggingConfiguration", {
-    logDestinationConfigs: [
-      // Construct the different ARN format from the logGroupName
-      Stack.of(this).formatArn({
-        arnFormat: ArnFormat.COLON_RESOURCE_NAME,
-        service: "logs",
-        resource: "log-group",
-        resourceName: webAclLogGroup.logGroupName,
-      })
-    ],
-    resourceArn: aclArn // Arn of Acl
-  });
-  */
+
 
    // Associate WAF with CloudWatch Log Group for logging
    new wafv2.CfnLoggingConfiguration(this, 'WafLoggingConfiguration', {
@@ -180,15 +172,33 @@ export class WAFv2Stack extends Stack {
 
   // Output the WAF console URL for easy access
   new CfnOutput(this, 'AclConsoleUrl', {
-    value: `https://console.aws.amazon.com/wafv2/homev2/web-acls?${this.region}`,
+    value: `https://us-east-1.console.aws.amazon.com/wafv2/homev2/web-acls?region=${this.region}#/`,
     description: 'URL to access the WAF console'
   });
   
-  // Output a note about testing the WAF
-  new CfnOutput(this, 'TestingInstructions', {
-    value: 'To test the WAF, append ?blockme to the ALB URL',
-    description: 'Instructions for testing the WAF blocking rule'
+  // // Output the WAF console URL for easy access
+  // new CfnOutput(this, 'ContainerBasedAllowTest', {
+  //   value: `podman run -d --rm  -e URL=http://${props.alb.loadBalancerDnsName}/?allowme  -e CRON_SCHEDULE="* * * * *" lecovi/curl-cron`,
+  //   description: 'Send allow access test thru the WAF every minute'
+  // });
+  
+  // Output the WAF console URL for easy access
+  new CfnOutput(this, 'ContainerBasedBlockTest', {
+    value: `podman run -d --rm  -e URL=http://${props.alb.loadBalancerDnsName}/?blockme  -e CRON_SCHEDULE="* * * * *" lecovi/curl-cron`,
+    description: 'Send block access test thru the WAF every minute'
   });
+
+  // // Output the ALB ARN for reference
+  // new CfnOutput(this, 'AlbArn', {
+  //   value: props.alb.loadBalancerArn,
+  //   description: 'ARN of the Application Load Balancer'
+  // });
+  
+  // // Output a note about testing the WAF
+  // new CfnOutput(this, 'TestingInstructions', {
+  //   value: 'To test the WAF, append ?blockme to the ALB URL',
+  //   description: 'Instructions for testing the WAF blocking rule'
+  // });
 
 
 

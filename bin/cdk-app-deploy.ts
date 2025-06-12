@@ -57,6 +57,7 @@ const wafStack = new WAFv2Stack(app, 'waf',
   environment,
   costcenter,
   dtstamp,
+  alb: ecsStack.alb, // Pass the ALB from the ECS stack
 });
 
 // Add explicit dependency to ensure WAF stack is deployed after ECS stack
