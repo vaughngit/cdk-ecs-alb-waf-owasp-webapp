@@ -1,5 +1,5 @@
 {
-  "name": "aws-cdk-ec2-autoscale-webapp",
+  "name": "@amzn/aws-cdk-ec2-autoscale-webapp",
   "version": "0.1.0",
   "bin": {
     "aws-cdk-ec2-autoscale-webapp": "bin/aws-cdk-ec2-autoscale-webapp.js"

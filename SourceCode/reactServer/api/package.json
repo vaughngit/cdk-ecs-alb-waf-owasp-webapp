@@ -1,5 +1,5 @@
 {
-  "name": "react-nodejs-example",
+  "name": "@amzn/react-nodejs-example",
   "version": "1.0.0",
   "description": "example project react with nodejs",
   "main": "server.js",
