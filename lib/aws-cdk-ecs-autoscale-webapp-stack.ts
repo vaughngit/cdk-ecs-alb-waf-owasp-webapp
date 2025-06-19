@@ -248,37 +248,47 @@ export class EcsAutoscaleWebappStack extends Stack {
     });
 
 
-    const zone = route53.HostedZone.fromLookup(this, 'PrivateHostedZone', {
-      domainName: props.domainName
-    })
+    // Make DNS configuration optional
+    try {
+      // Try to look up the hosted zone
+      const zone = route53.HostedZone.fromLookup(this, 'PrivateHostedZone', {
+        domainName: props.domainName
+      });
 
-    const cnameRecord = new route53.CnameRecord(this, 'MyCnameRecord', {
-      domainName: this._alb.loadBalancerDnsName,
-      zone: zone,
-      comment: 'cname for appmesh alb endpoint',
-      recordName: props.cname,
-            ttl: Duration.minutes(30),
-    }); 
+      // If zone lookup succeeds, create CNAME record
+      const cnameRecord = new route53.CnameRecord(this, 'MyCnameRecord', {
+        domainName: this._alb.loadBalancerDnsName,
+        zone: zone,
+        comment: 'cname for appmesh alb endpoint',
+        recordName: props.cname,
+        ttl: Duration.minutes(30),
+      });
 
-    // create new ssl cert for loadbalancer 
-   const acmcert =  new acm.Certificate(this, 'AcmCertificate', {
-    //https://docs.aws.amazon.com/cdk/api/v1/docs/aws-certificatemanager-readme.html
-      domainName: `${props.cname}.${props.domainName}`,
-      validation: acm.CertificateValidation.fromDns(zone),
-    });
-      
+      // Create SSL certificate
+      const acmcert = new acm.Certificate(this, 'AcmCertificate', {
+        domainName: `${props.cname}.${props.domainName}`,
+        validation: acm.CertificateValidation.fromDns(zone),
+      });
 
+      // Create HTTPS listener
+      const port443AlbListener = new elbv2.ApplicationListener(this, 'secure alb listener', {
+        loadBalancer: this._alb,
+        defaultTargetGroups: [albTargetGroup],
+        port: 443,
+        sslPolicy: elbv2.SslPolicy.RECOMMENDED,
+        certificates: [elbv2.ListenerCertificate.fromCertificateManager(acmcert)],
+        open: false // Restrict access - don't open to everyone
+      });
 
-
-    const port443AlbListener = new elbv2.ApplicationListener(this, 'secure alb listener', { 
-      //https://docs.aws.amazon.com/cdk/api/v1/docs/@aws-cdk_aws-elasticloadbalancingv2.NetworkListenerProps.html
-      loadBalancer: this._alb,
-      defaultTargetGroups: [albTargetGroup],
-      port: 443, 
-      sslPolicy: elbv2.SslPolicy.RECOMMENDED,
-      certificates: [elbv2.ListenerCertificate.fromCertificateManager(acmcert)],
-      open: false // Restrict access - don't open to everyone
-    }); 
+      // Output the Route53 CNAME
+      new CfnOutput(this, 'Route53CName', { value: 'https://'+cnameRecord.domainName });
+    } catch (error: any) {
+      console.log(`DNS configuration skipped: ${error.message || 'Unknown error'}`);
+      // Output a message indicating DNS configuration was skipped
+      new CfnOutput(this, 'DNSConfigurationStatus', { 
+        value: 'DNS configuration skipped - Hosted zone not found for domain: ' + props.domainName 
+      });
+    }
 
 
     
@@ -291,7 +301,7 @@ export class EcsAutoscaleWebappStack extends Stack {
 
     new CfnOutput(this, 'LoadBalancerDNS', { value: `http://${this._alb.loadBalancerDnsName}`, });
     new CfnOutput(this, 'VPCIP', { value: vpc.vpcId, exportName: `${props.solutionName}-vpcip` });
-    new CfnOutput(this, 'Route53CName', { value: 'https://'+cnameRecord.domainName, });
+    // Route53CName output is now conditionally created in the try/catch block above
     new CfnOutput(this, 'ECS Cluster Name', { value: cluster.clusterName, exportName: `${props.solutionName}-ecsClusterName` });
     new CfnOutput(this, 'ECS Cluster Arn', { value: cluster.clusterArn, exportName: `${props.solutionName}-ecsClusterArn` });
     new CfnOutput(this, 'ECS Security Group Id', { value: ecsSG.securityGroupId, exportName: `${props.solutionName}-ecsSgId` });

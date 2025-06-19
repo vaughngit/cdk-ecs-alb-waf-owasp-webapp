@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for AWS Firewall Manager WAF policy'
+
+Parameters:
+  SolutionName:
+    Type: String
+    Description: Name of the solution (should match the name used in the ECS stack)
+    Default: wafxssblocker-two
+  
+  WebAclArn:
+    Type: String
+    Description: ARN of the WAF Web ACL in the ECS account (copy from the WebAclArn output of the Firewall Manager stack)
+    # Example: arn:aws:wafv2:us-west-2:796072252262:regional/webacl/wafxssblocker-two-managed-waf/abcdef12-3456-7890-abcd-ef1234567890
+  
+  TargetAccount:
+    Type: String
+    Description: AWS account ID where the ECS and WAF resources are deployed
+    # Example: 796072252262
+
+Resources:
+  FmsWafPolicy:
+    Type: AWS::FMS::Policy
+    Properties:
+      PolicyName: !Sub '${SolutionName}-waf-policy'
+      RemediationEnabled: true
+      ResourceType: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+      SecurityServicePolicyData:
+        Type: 'WAFV2'
+        ManagedServiceData: !Sub |
+          {
+            "type": "WAFV2",
+            "defaultAction": { "type": "ALLOW" },
+            "preProcessRuleGroups": [],
+            "postProcessRuleGroups": [],
+            "overrideCustomerWebACLAssociation": true,
+            "webACLId": "${WebAclArn}"
+          }
+      IncludeMap:
+        account:
+          - !Ref TargetAccount
+      ExcludeResourceTags: false
+
+Outputs:
+  FmsWafPolicyId:
+    Description: ID of the Firewall Manager policy
+    Value: !Ref FmsWafPolicy

@@ -188,11 +188,11 @@ export class WAFv2Stack extends Stack {
     description: 'Send block access test thru the WAF every minute'
   });
 
-  // // Output the ALB ARN for reference
-  // new CfnOutput(this, 'AlbArn', {
-  //   value: props.alb.loadBalancerArn,
-  //   description: 'ARN of the Application Load Balancer'
-  // });
+  // Output the ALB ARN for reference
+  new CfnOutput(this, 'AlbArn', {
+    value: props.alb.loadBalancerArn,
+    description: 'ARN of the Application Load Balancer'
+  });
   
   // // Output a note about testing the WAF
   // new CfnOutput(this, 'TestingInstructions', {
