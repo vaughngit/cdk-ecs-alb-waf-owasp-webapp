@@ -7,6 +7,7 @@ flowchart LR
     subgraph WAFProtection[WAF Protection Layer]
         WAF([AWS WAFv2 Web ACL])
         subgraph RuleSets[WAF Rule Sets]
+            direction TB
             IPRule([Amazon IP Reputation List])
             CommonRule([AWS Common Rule Set])
             BotRule([Bot Control Rule Set])
