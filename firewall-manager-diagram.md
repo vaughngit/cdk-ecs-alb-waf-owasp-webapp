@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart TB
-    User((End User)) --> WAF
+    User((End User)) -->|1. Web Request| WAF
 
     subgraph ParentAccount["AWS Organizations - Parent Account"]
         direction LR
@@ -16,18 +16,28 @@ flowchart TB
             BlockedIPs([Blocked IPs])
         end
 
-        FMS --> FMSPolicy
-        CustomRuleGroup --> FMSPolicy
-        AllowedIPs --> CustomRuleGroup
-        BlockedIPs --> CustomRuleGroup
+        FMS -->|A. Configure| FMSPolicy
+        CustomRuleGroup -->|B. Apply Rules| FMSPolicy
+        AllowedIPs -->|Whitelist| CustomRuleGroup
+        BlockedIPs -->|Blacklist| CustomRuleGroup
         Lambda -.->|Cleanup| FMSPolicy
     end
 
     subgraph ChildAccount["AWS Organizations - Child Account"]
         WAF([AWS WAFv2 Web ACL])
         
+        subgraph WAFEvaluation[WAF Evaluation Process]
+            IPReputation([Amazon IP\nReputation List])
+            BotControl([Bot Control\nRule Set]) 
+            CommonRules([Common\nRule Set])
+            SQLi([SQL Injection\nProtection])
+        end
+
+        WAF -->|2. Evaluate Request| WAFEvaluation
+        WAFEvaluation -->|3. Allow/Block| WAF
+        
         subgraph ProtectedResources[Protected Resources]
-            ALB([Application Load Balancer])
+            ALB([Application\nLoad Balancer])
             
             subgraph ECSCluster[ECS Service]
                 style ECSCluster fill:#f5f5f5,stroke:#999,stroke-dasharray: 5 5
@@ -35,16 +45,16 @@ flowchart TB
                 style ECS fill:#f5f5f5,color:#999
             end
             
-            ALB --> ECS
+            ALB -->|5. Forward Request| ECS
         end
         
         CWLogs([CloudWatch Logs])
-        WAF --> ALB
-        WAF -.->|Logging| CWLogs
+        WAF -->|4. Allow Request| ALB
+        WAF -.->|Log Events| CWLogs
     end
 
-    FMSPolicy -->|Applies WAF policy to| ChildAccount
-    FMSPolicy -.->|Creates & manages| WAF
+    FMSPolicy -->|C. Applies WAF policy to| ChildAccount
+    FMSPolicy -.->|D. Creates & manages| WAF
     
     style ECSCluster opacity:0.7
     style ECS opacity:0.7
@@ -54,30 +64,44 @@ flowchart TB
     style ChildAccount fill:#fff3e0,stroke:#ffe0b2
     style FMSPolicy fill:#e6f7ff
     style CustomRuleGroup fill:#e6f7ff
+    style WAFEvaluation fill:#fff3d4
 ```
 
 ## Key Components:
 
+### User Traffic Flow
+1. **Step 1**: End user sends web request to the application 
+2. **Step 2**: WAF evaluates the request against all protection rules
+3. **Step 3**: Rules return allow or block verdict
+4. **Step 4**: If allowed, request passes to the ALB
+5. **Step 5**: ALB forwards the request to the appropriate ECS service
+
 ### Parent Account (Firewall Manager Administrator)
-1. **AWS Firewall Manager**: Central service for managing WAF rules across accounts
-2. **Custom Rule Group**: Contains custom WAF rules:
-   - Allowed IPs Set (whitelist)
-   - Blocked IPs Set (blacklist)
-   - SQL Injection Protection
-3. **Firewall Manager Policy**: Policy that applies WAF protection to resources in specified accounts
-4. **Cleanup Lambda Function**: Handles proper resource cleanup during stack deletion
+- **AWS Firewall Manager**: Central service for managing WAF rules across accounts
+- **Custom Rule Group**: Contains custom WAF rules:
+  - Allowed IPs Set (whitelist)
+  - Blocked IPs Set (blacklist)
+  - SQL Injection Protection rules
+- **Firewall Manager Policy**: Policy that applies WAF protection to resources in specified accounts
+- **Cleanup Lambda Function**: Handles proper resource cleanup during stack deletion
 
 ### Child Account (Application Account)
-1. **AWS WAFv2 Web ACL**: Created and managed by Firewall Manager
-   - Includes both custom rules from parent account
-   - Includes AWS managed rule groups:
-     - Amazon IP Reputation List
-     - Bot Control Rule Set
-     - Common Rule Set
-2. **Protected Resources**:
-   - **Application Load Balancer**: Distributes traffic to backend services
-   - **ECS Service**: Container-based application (de-emphasized as not the focus)
-3. **CloudWatch Logs**: Captures and stores WAF logs for analysis and auditing
+- **AWS WAFv2 Web ACL**: Created and managed by Firewall Manager
+- **WAF Evaluation Process**:
+  - Amazon IP Reputation List: Blocks requests from known malicious IP addresses
+  - Bot Control Rule Set: Identifies and manages requests from bots
+  - Common Rule Set: Protects against common vulnerabilities
+  - SQL Injection Protection: Blocks malicious SQL code in requests
+- **Protected Resources**:
+  - Application Load Balancer: Distributes traffic to backend services
+  - ECS Service: Container-based application (de-emphasized as not the focus)
+- **CloudWatch Logs**: Captures and stores WAF logs for analysis and auditing
+
+### Management Flow (Letters A-D)
+- **A**: Firewall Manager configures security policies
+- **B**: Custom rules are applied to the Firewall Manager policy
+- **C**: The policy is applied to the child account
+- **D**: Firewall Manager creates and manages the WAF in the child account
 
 ### Benefits of this Architecture
 - Centralized security policy management
