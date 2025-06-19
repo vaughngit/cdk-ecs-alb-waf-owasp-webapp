@@ -34,7 +34,6 @@ flowchart TB
         end
 
         WAF --> WAFEvaluation
-        WAFEvaluation --> WAF
         
         subgraph ProtectedResources[Protected Resources]
             ALB([Application Load Balancer])
@@ -49,7 +48,7 @@ flowchart TB
         end
         
         CWLogs([CloudWatch Logs])
-        WAF --> ALB
+        WAFEvaluation --> ALB
         WAF -.-> CWLogs
     end
 

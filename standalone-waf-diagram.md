@@ -13,18 +13,10 @@ flowchart LR
             CustomRule([Custom BlockQuery Rule])
         end
         
-        WAF --> IPRule
-        WAF --> CommonRule
-        WAF --> BotRule
-        WAF --> CustomRule
-        
-        IPRule --> WAF
-        CommonRule --> WAF
-        BotRule --> WAF
-        CustomRule --> WAF
+        WAF --> RuleSets
     end
     
-    WAF --> ALB
+    RuleSets --> ALB
     WAF -.-> CWLogs([CloudWatch Logs])
     
     subgraph Resources[Protected Resources]
