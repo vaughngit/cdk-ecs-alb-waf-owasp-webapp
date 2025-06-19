@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart TB
-    User((End User)) -->|1. Web Request| WAF
+    User((End User)) --> WAF
 
     subgraph ParentAccount["AWS Organizations - Parent Account"]
         direction LR
@@ -16,28 +16,28 @@ flowchart TB
             BlockedIPs([Blocked IPs])
         end
 
-        FMS -->|A. Configure| FMSPolicy
-        CustomRuleGroup -->|B. Apply Rules| FMSPolicy
-        AllowedIPs -->|Whitelist| CustomRuleGroup
-        BlockedIPs -->|Blacklist| CustomRuleGroup
-        Lambda -.->|Cleanup| FMSPolicy
+        FMS --> FMSPolicy
+        CustomRuleGroup --> FMSPolicy
+        AllowedIPs --> CustomRuleGroup
+        BlockedIPs --> CustomRuleGroup
+        Lambda -.-> FMSPolicy
     end
 
     subgraph ChildAccount["AWS Organizations - Child Account"]
         WAF([AWS WAFv2 Web ACL])
         
         subgraph WAFEvaluation[WAF Evaluation Process]
-            IPReputation([Amazon IP\nReputation List])
-            BotControl([Bot Control\nRule Set]) 
-            CommonRules([Common\nRule Set])
-            SQLi([SQL Injection\nProtection])
+            IPReputation([Amazon IP Reputation List])
+            BotControl([Bot Control Rule Set]) 
+            CommonRules([Common Rule Set])
+            SQLi([SQL Injection Protection])
         end
 
-        WAF -->|2. Evaluate Request| WAFEvaluation
-        WAFEvaluation -->|3. Allow/Block| WAF
+        WAF --> WAFEvaluation
+        WAFEvaluation --> WAF
         
         subgraph ProtectedResources[Protected Resources]
-            ALB([Application\nLoad Balancer])
+            ALB([Application Load Balancer])
             
             subgraph ECSCluster[ECS Service]
                 style ECSCluster fill:#f5f5f5,stroke:#999,stroke-dasharray: 5 5
@@ -45,16 +45,16 @@ flowchart TB
                 style ECS fill:#f5f5f5,color:#999
             end
             
-            ALB -->|5. Forward Request| ECS
+            ALB --> ECS
         end
         
         CWLogs([CloudWatch Logs])
-        WAF -->|4. Allow Request| ALB
-        WAF -.->|Log Events| CWLogs
+        WAF --> ALB
+        WAF -.-> CWLogs
     end
 
-    FMSPolicy -->|C. Applies WAF policy to| ChildAccount
-    FMSPolicy -.->|D. Creates & manages| WAF
+    FMSPolicy --> ChildAccount
+    FMSPolicy -.-> WAF
     
     style ECSCluster opacity:0.7
     style ECS opacity:0.7

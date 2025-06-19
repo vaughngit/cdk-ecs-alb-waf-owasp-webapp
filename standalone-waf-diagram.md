@@ -2,39 +2,39 @@
 
 ```mermaid
 flowchart LR
-    User((End User)) -->|1. Web Request| WAF
+    User((End User)) --> WAF
     
     subgraph WAFProtection[WAF Protection Layer]
         WAF([AWS WAFv2 Web ACL])
         subgraph RuleSets[WAF Rule Sets]
-            IPRule([Amazon IP\nReputation List])
-            CommonRule([AWS Common\nRule Set])
-            BotRule([Bot Control\nRule Set])
-            CustomRule([Custom\nBlockQuery Rule])
+            IPRule([Amazon IP Reputation List])
+            CommonRule([AWS Common Rule Set])
+            BotRule([Bot Control Rule Set])
+            CustomRule([Custom BlockQuery Rule])
         end
         
-        WAF -->|2. Evaluate Request| IPRule
-        WAF -->|3. Evaluate Request| CommonRule
-        WAF -->|4. Evaluate Request| BotRule
-        WAF -->|5. Evaluate Request| CustomRule
+        WAF --> IPRule
+        WAF --> CommonRule
+        WAF --> BotRule
+        WAF --> CustomRule
         
-        IPRule -->|Allow/Block| WAF
-        CommonRule -->|Allow/Block| WAF
-        BotRule -->|Allow/Block| WAF
-        CustomRule -->|Allow/Block| WAF
+        IPRule --> WAF
+        CommonRule --> WAF
+        BotRule --> WAF
+        CustomRule --> WAF
     end
     
-    WAF -->|6. Allow Request| ALB
-    WAF -.->|Log Events| CWLogs([CloudWatch Logs])
+    WAF --> ALB
+    WAF -.-> CWLogs([CloudWatch Logs])
     
     subgraph Resources[Protected Resources]
-        ALB([Application\nLoad Balancer])
+        ALB([Application Load Balancer])
         subgraph ECSCluster[ECS Service]
             style ECSCluster fill:#f5f5f5,stroke:#999,stroke-dasharray: 5 5
             ECS([ECS Service])
             style ECS fill:#f5f5f5,color:#999
         end
-        ALB -->|7. Forward Request| ECS
+        ALB --> ECS
     end
     
     style ECSCluster opacity:0.7
@@ -42,9 +42,6 @@ flowchart LR
     style WAF fill:#f9d67a,stroke:#f99c1a
     style WAFProtection fill:#fff9e6
     style RuleSets fill:#fff3d4
-    
-    classDef flowLabel fill:none,stroke:none,color:#666
-    class flowText flowLabel
 ```
 
 ## Key Components:
