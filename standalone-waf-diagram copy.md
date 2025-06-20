@@ -1,4 +1,5 @@
 # Standalone WAF Implementation Diagram
+
 ```mermaid
 flowchart LR
     User((End User)) --> WAF
@@ -15,10 +16,7 @@ flowchart LR
     end
     
     RuleSets --> ALB
-    
-    %% Modified connection to CloudWatch Logs to be vertical
-    WAF -..-> CWLogs([CloudWatch Logs])
-    linkStyle 3 stroke-dasharray: 3 3
+    WAF -.-> CWLogs([CloudWatch Logs])
     
     subgraph Resources[Protected Resources]
         ALB([Application Load Balancer])
