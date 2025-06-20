@@ -8,13 +8,10 @@ flowchart LR
         WAF([AWS WAFv2 Web ACL])
         subgraph RuleSets[WAF Rule Sets]
             direction TB
-            IPRule([Amazon IP Reputation List])
-            CommonRule([AWS Common Rule Set])
-            BotRule([Bot Control Rule Set])
-            CustomRule([Custom BlockQuery Rule])
+            IPRule([Amazon IP Reputation List]) --> CommonRule([AWS Common Rule Set])
+            CommonRule --> BotRule([Bot Control Rule Set])
+            BotRule --> CustomRule([Custom BlockQuery Rule])
         end
-        
-        WAF --> RuleSets
     end
     
     RuleSets --> ALB
