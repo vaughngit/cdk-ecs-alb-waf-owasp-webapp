@@ -12,6 +12,7 @@ flowchart LR
             CommonRule --> BotRule([Bot Control Rule Set])
             BotRule --> CustomRule([Custom BlockQuery Rule])
         end
+        WAF --> RuleSets
     end
     
     RuleSets --> ALB
