@@ -1,40 +1,38 @@
 # Standalone WAF Implementation Diagram
 ```mermaid
 flowchart LR
-    User((End User)) --> WAF
-    
-    subgraph WAFProtection[WAF Protection Layer]
-        WAF([AWS WAFv2 Web ACL])
-        subgraph RuleSets[WAF Rule Sets]
-            direction TB
-            IPRule([Amazon IP Reputation List]) --> CommonRule([AWS Common Rule Set])
-            CommonRule --> BotRule([Bot Control Rule Set])
-            BotRule --> CustomRule([Custom BlockQuery Rule])
-        end
-        WAF --> RuleSets
-    end
-    
+ subgraph RuleSets["WAF Rule Sets"]
+    direction TB
+        CommonRule(["AWS Common Rule Set"])
+        IPRule(["Amazon IP Reputation List"])
+        BotRule(["Bot Control Rule Set"])
+        CustomRule(["Custom BlockQuery Rule"])
+  end
+ subgraph WAFProtection["WAF Protection Layer"]
+        WAF(["AWS WAFv2 Web ACL"])
+        RuleSets
+  end
+ subgraph ECSCluster["Services"]
+        ECS(["App Service"])
+  end
+ subgraph Resources["Protected Resources"]
+        ALB(["Application Load Balancer"])
+        ECSCluster
+  end
+    User(("App User")) --> WAF
+    IPRule --> CommonRule
+    CommonRule --> BotRule
+    BotRule --> CustomRule
+    WAF --> RuleSets
     RuleSets --> ALB
-    
-    %% Modified connection to CloudWatch Logs to be vertical
-    WAF -..-> CWLogs([CloudWatch Logs])
-    linkStyle 3 stroke-dasharray: 3 3
-    
-    subgraph Resources[Protected Resources]
-        ALB([Application Load Balancer])
-        subgraph ECSCluster[ECS Service]
-            style ECSCluster fill:#f5f5f5,stroke:#999,stroke-dasharray: 5 5
-            ECS([ECS Service])
-            style ECS fill:#f5f5f5,color:#999
-        end
-        ALB --> ECS
-    end
-    
-    style ECSCluster opacity:0.7
-    style ECS opacity:0.7
+    ALB --> ECS
+
     style WAF fill:#f9d67a,stroke:#f99c1a
-    style WAFProtection fill:#fff9e6
     style RuleSets fill:#fff3d4
+    style ECSCluster fill:#f5f5f5,stroke:#999,stroke-dasharray: 5 5,opacity:0.7
+    style ECS fill:#f5f5f5,color:#999,opacity:0.7
+    style WAFProtection fill:#fff9e6
+    linkStyle 3 stroke-dasharray: 3 3,fill:none
 ```
 
 ## Key Components:
